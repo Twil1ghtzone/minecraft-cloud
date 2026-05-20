@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"archive/tar"
 	"context"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/aethernet/aethernet/pkg/types"
 	"github.com/docker/docker/api/types/container"
@@ -172,6 +174,12 @@ func (c *Controller) RemoveServer(ctx context.Context, serverID string, purgeVol
 	if c == nil {
 		return ErrDisabled
 	}
+	// Salvage crash-reports and logs from the tmpfs before the container is
+	// destroyed. These files are not on the persistent /data bind-mount so they
+	// would otherwise be lost the moment ContainerRemove runs.
+	if err := c.SalvageLogs(ctx, serverID); err != nil {
+		c.log.Warn("log salvage failed — continuing with removal", "server_id", serverID, "err", err)
+	}
 	err := c.cli.ContainerRemove(ctx, containerName(serverID), container.RemoveOptions{Force: true})
 	if err != nil && !client.IsErrNotFound(err) {
 		return err
@@ -179,6 +187,33 @@ func (c *Controller) RemoveServer(ctx context.Context, serverID string, purgeVol
 	if purgeVolume {
 		return os.RemoveAll(filepath.Join(c.cfgDir.ScratchRoot, serverID))
 	}
+	return nil
+}
+
+// SalvageLogs copies /tmp from inside the container (tmpfs) to a timestamped
+// subdirectory under the server's persistent scratch path. Call this before
+// RemoveServer to preserve crash-reports and latest.log across container death.
+func (c *Controller) SalvageLogs(ctx context.Context, serverID string) error {
+	if c == nil {
+		return ErrDisabled
+	}
+	tarStream, _, err := c.cli.CopyFromContainer(ctx, containerName(serverID), "/tmp")
+	if err != nil {
+		if client.IsErrNotFound(err) {
+			return nil // container already gone — nothing to salvage
+		}
+		return fmt.Errorf("copy /tmp from container: %w", err)
+	}
+	defer tarStream.Close()
+
+	dest := filepath.Join(c.cfgDir.ScratchRoot, serverID, "salvage")
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		return fmt.Errorf("mkdir salvage: %w", err)
+	}
+	if err := extractTar(tarStream, dest); err != nil {
+		return fmt.Errorf("extract salvage tar: %w", err)
+	}
+	c.log.Info("logs salvaged from tmpfs", "server_id", serverID, "dest", dest)
 	return nil
 }
 
@@ -243,6 +278,52 @@ func (c *Controller) Exec(ctx context.Context, serverID, cmd string) (string, in
 func containerName(id string) string { return "aether-" + id }
 
 var ErrDisabled = errors.New("docker: controller not available")
+
+// extractTar unpacks a tar stream (as returned by docker CopyFromContainer)
+// into destDir, stripping the leading path component that Docker adds.
+// Only regular files and directories are extracted; symlinks are skipped.
+func extractTar(r io.Reader, destDir string) error {
+	tr := tar.NewReader(r)
+	for {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		// Docker wraps the result in a directory named after the source path
+		// component (e.g. "tmp/crash-reports/..."). Strip that prefix.
+		name := hdr.Name
+		if i := strings.IndexByte(name, '/'); i >= 0 {
+			name = name[i+1:]
+		}
+		if name == "" || strings.Contains(name, "..") {
+			continue
+		}
+		dest := filepath.Join(destDir, filepath.FromSlash(name))
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(dest, 0o755); err != nil {
+				return err
+			}
+		case tar.TypeReg:
+			if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+				return err
+			}
+			f, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, hdr.FileInfo().Mode())
+			if err != nil {
+				return err
+			}
+			_, copyErr := io.Copy(f, tr)
+			f.Close()
+			if copyErr != nil {
+				return copyErr
+			}
+		}
+	}
+	return nil
+}
 
 // container_PortBinding mirrors nat.PortBinding without importing the docker/go-connections package
 // at this layer.

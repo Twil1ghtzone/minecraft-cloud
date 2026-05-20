@@ -5,11 +5,16 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/aethernet/aethernet/pkg/types"
 )
+
+// ident validates SQL identifiers (table / column names) to prevent injection
+// via the DESCRIBE endpoint, which interpolates the name into a query string.
+var ident = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_$]{0,63}$`)
 
 // Workbench is the read+write SQL gateway exposed by the panel.
 //
@@ -50,8 +55,12 @@ func (w *Workbench) poolFor(db types.Database) (*sql.DB, error) {
 	// Connect as the per-database service user. (The admin user could also
 	// be used here but the panel runs the workbench scoped per-database so
 	// SQL can never accidentally cross tenant boundaries.)
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?multiStatements=false&parseTime=true",
-		db.Username, "<service-pwd>", w.cfg.Host, w.cfg.Port, db.Name)
+	// Use the admin credentials scoped to this database. The workbench is an
+	// operator tool, so it connects as the cluster admin user constrained to
+	// the target database — never as a per-tenant service account.
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?multiStatements=false&parseTime=true&timeout=%s",
+		w.cfg.AdminUser, w.cfg.AdminPassword, w.cfg.Host, w.cfg.Port, db.Name,
+		w.cfg.ConnectTimeout.String())
 	pool, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return nil, err
