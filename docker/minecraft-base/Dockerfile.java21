@@ -1,0 +1,57 @@
+# AetherNet Minecraft Base Image — Alpine + Eclipse Temurin JRE 21
+# Optimized for minimal footprint and correct signal handling.
+
+FROM eclipse-temurin:21-jre-alpine
+
+LABEL maintainer="AetherNet" \
+      description="AetherNet Minecraft server base image — Java 21 Alpine"
+
+# Install required tools
+RUN apk add --no-cache \
+      bash \
+      curl \
+      tini \
+      shadow \
+    && addgroup -g 1001 minecraft \
+    && adduser -u 1001 -G minecraft -s /bin/bash -D minecraft
+
+# Create directory structure
+RUN mkdir -p /data /template /tmp/mc-logs \
+    && chown -R minecraft:minecraft /data /tmp/mc-logs
+
+# tini is used as the init process to forward signals correctly to the JVM
+# This ensures SIGTERM triggers a graceful JVM shutdown instead of SIGKILL
+ENTRYPOINT ["/sbin/tini", "--"]
+
+# Default command — overridden by AetherNet container spec via env vars
+# JVM flags: G1GC for low-latency GC pauses, explicit heap bounds from MEMORY_MB env
+CMD ["/bin/bash", "-c", \
+  "exec java \
+    -Xmx${MEMORY_MB:-2048}m \
+    -Xms${MEMORY_MB:-2048}m \
+    -XX:+UseG1GC \
+    -XX:+ParallelRefProcEnabled \
+    -XX:MaxGCPauseMillis=200 \
+    -XX:+UnlockExperimentalVMOptions \
+    -XX:+DisableExplicitGC \
+    -XX:+AlwaysPreTouch \
+    -XX:G1HeapWastePercent=5 \
+    -XX:G1MixedGCCountTarget=4 \
+    -XX:G1MixedGCLiveThresholdPercent=90 \
+    -XX:G1RSetUpdatingPauseTimePercent=5 \
+    -XX:SurvivorRatio=32 \
+    -XX:+PerfDisableSharedMem \
+    -XX:MaxTenuringThreshold=1 \
+    -Dusing.aikars.flags=https://mcflags.emc.gs \
+    -Daikars.new.flags=true \
+    -Daethernet.server_id=${AETHERNET_SERVER_ID:-unknown} \
+    -Daethernet.template=${AETHERNET_TEMPLATE:-default} \
+    -jar /data/server.jar \
+    nogui"]
+
+# Health check: probe RCON or the process
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD pgrep -f "server.jar" > /dev/null || exit 1
+
+USER minecraft
+WORKDIR /data

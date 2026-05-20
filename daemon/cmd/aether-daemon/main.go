@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,10 +17,15 @@ import (
 	"github.com/aethernet/aethernet/daemon/internal/api"
 	"github.com/aethernet/aethernet/daemon/internal/cluster"
 	"github.com/aethernet/aethernet/daemon/internal/config"
+	"github.com/aethernet/aethernet/daemon/internal/database"
 	"github.com/aethernet/aethernet/daemon/internal/docker"
+	"github.com/aethernet/aethernet/daemon/internal/firewall"
+	"github.com/aethernet/aethernet/daemon/internal/heartbeat"
+	"github.com/aethernet/aethernet/daemon/internal/metrics"
 	"github.com/aethernet/aethernet/daemon/internal/raftfsm"
 	"github.com/aethernet/aethernet/daemon/internal/scheduler"
 	"github.com/aethernet/aethernet/daemon/internal/sftp"
+	"github.com/aethernet/aethernet/daemon/internal/snapshot"
 )
 
 var (
@@ -99,6 +105,50 @@ func run(logger *slog.Logger) error {
 	})
 	go sched.Run(ctx)
 
+	// 4a. Heartbeat broadcaster
+	hb := heartbeat.New(heartbeat.Options{
+		NodeID:    cfg.NodeID,
+		Address:   cfg.RaftAdvertiseAddr,
+		Interval:  500 * time.Millisecond,
+		Cluster:   clu,
+		FSM:       fsm,
+		Logger:    logger.With("component", "heartbeat"),
+	})
+	go hb.Run(ctx)
+
+	// 4b. Firewall manager
+	fw := firewall.New(logger.With("component", "firewall"))
+	_ = fw.EnsureChain()
+
+	// 4c. Database Workbench
+	host, portStr, err := net.SplitHostPort(cfg.MariaDBAddr)
+	var port uint32 = 3306
+	if err == nil {
+		fmt.Sscanf(portStr, "%d", &port)
+	} else {
+		host = cfg.MariaDBAddr
+	}
+	wb := database.NewWorkbench(database.PoolConfig{
+		Host:          host,
+		Port:          port,
+		AdminUser:     cfg.MariaDBUser,
+		AdminPassword: cfg.MariaDBPass,
+	})
+
+	// 4d. Prometheus Metrics Exporter
+	metricSrv := metrics.New(metrics.Options{
+		Listen:  ":9100",
+		NodeID:  cfg.NodeID,
+		Cluster: clu,
+		FSM:     fsm,
+		Logger:  logger.With("component", "metrics"),
+	})
+	go func() {
+		if err := metricSrv.Serve(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			logger.Error("metrics exporter exited", "err", err)
+		}
+	}()
+
 	// 5. SFTP server
 	sftpSrv, err := sftp.New(sftp.Options{
 		Listen:  cfg.SFTPListen,
@@ -124,6 +174,8 @@ func run(logger *slog.Logger) error {
 		FSM:        fsm,
 		Scheduler:  sched,
 		Docker:     dc,
+		Firewall:   fw,
+		Workbench:  wb,
 		Logger:     logger.With("component", "api"),
 	})
 	go func() {

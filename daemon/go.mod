@@ -16,6 +16,8 @@ require (
 	google.golang.org/grpc v1.64.0
 	google.golang.org/protobuf v1.34.1
 	gopkg.in/yaml.v3 v3.0.1
+	github.com/prometheus/client_golang v1.19.1
+	github.com/minio/minio-go/v7 v7.0.72
 )
 
 replace github.com/aethernet/aethernet/pkg => ../pkg

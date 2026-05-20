@@ -1,0 +1,15 @@
+name: AetherNetCloudBridge
+version: '0.1.0'
+main: net.aethernet.cloud.CloudBridgePlugin
+api-version: '1.20'
+authors:
+  - AetherNet
+description: AetherNet CloudBridge — player sync, sign API, and tablist sync.
+website: https://aethernet.example.com
+soft-depend:
+  - mcMMO
+commands:
+  aethernet:
+    description: AetherNet CloudBridge command interface
+    usage: /aethernet <info|sync|reload>
+    aliases: [an, aether]

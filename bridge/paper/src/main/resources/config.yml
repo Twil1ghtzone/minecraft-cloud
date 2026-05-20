@@ -1,0 +1,19 @@
+# AetherNet CloudBridge Configuration
+
+daemon:
+  host: "127.0.0.1"
+  port: 7001
+
+redis:
+  addresses:
+    - "127.0.0.1:6379"
+
+sync:
+  # Maximum milliseconds to stall login waiting for quit lock release
+  lock_timeout_ms: 5000
+  # Profile TTL in Redis (seconds)
+  profile_ttl_seconds: 30
+
+# Optional McMMO skill stat sync (requires McMMO plugin)
+mcmmo:
+  enabled: true

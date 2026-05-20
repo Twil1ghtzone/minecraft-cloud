@@ -1,0 +1,58 @@
+syntax = "proto3";
+package aethernet.proxy.v1;
+option go_package = "github.com/aethernet/aethernet/daemon/internal/proto/proxyv1";
+
+enum ServerEventType {
+  SERVER_EVENT_TYPE_UNSPECIFIED = 0;
+  SERVER_EVENT_TYPE_STARTING = 1;
+  SERVER_EVENT_TYPE_READY = 2;
+  SERVER_EVENT_TYPE_STOPPING = 3;
+  SERVER_EVENT_TYPE_STOPPED = 4;
+  SERVER_EVENT_TYPE_CRASHED = 5;
+}
+
+message ServerEvent {
+  string server_id = 1;
+  string server_name = 2;
+  string host_ip = 3;
+  uint32 host_port = 4;
+  string group_id = 5;
+  ServerEventType event_type = 6;
+  int64 timestamp = 7;
+  uint32 max_players = 8;
+  uint32 current_players = 9;
+}
+
+message ProxySubscribeRequest {
+  string proxy_id = 1;
+  string proxy_type = 2; // "velocity", "bungeecord", "waterdog"
+  repeated string group_filter = 3; // empty = subscribe to all
+}
+
+message SignUpdateRequest {
+  string server_id = 1;
+  string server_name = 2;
+  uint32 current_players = 3;
+  uint32 max_players = 4;
+  string state = 5;
+}
+
+message TablistUpdateRequest {
+  string network_name = 1;
+  uint32 total_players = 2;
+  uint32 total_servers = 3;
+  repeated ServerPlayerCount server_counts = 4;
+}
+
+message ServerPlayerCount {
+  string server_name = 1;
+  uint32 player_count = 2;
+}
+
+message AckResponse { bool ok = 1; }
+
+service ProxyBridgeService {
+  rpc Subscribe(ProxySubscribeRequest) returns (stream ServerEvent);
+  rpc UpdateSign(SignUpdateRequest) returns (AckResponse);
+  rpc UpdateTablist(TablistUpdateRequest) returns (AckResponse);
+}

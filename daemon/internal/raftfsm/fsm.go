@@ -28,22 +28,14 @@ type FSM struct {
 	groups    map[string]*types.Group
 	templates map[string]*types.Template
 	databases map[string]*types.Database
-	tokens    map[string]Token
+	tokens    map[string]types.Token
 	idem      map[string]int64 // idempotency key -> raft index
 
 	subscribers []chan Event
 	subMu       sync.Mutex
 }
 
-type Token struct {
-	ID         string   `json:"id"`
-	Hash       string   `json:"hash"` // argon2id
-	Scopes     []string `json:"scopes"`
-	CreatedAt  int64    `json:"created_at"`
-	ExpiresAt  int64    `json:"expires_at,omitempty"`
-	LastUsedAt int64    `json:"last_used_at,omitempty"`
-	Note       string   `json:"note,omitempty"`
-}
+// types.Token is used from pkg/types
 
 // Event is broadcast to subscribers whenever the FSM state changes.
 type Event struct {
@@ -62,7 +54,7 @@ func NewFSM(persistDir string) (*FSM, error) {
 		groups:     map[string]*types.Group{},
 		templates:  map[string]*types.Template{},
 		databases:  map[string]*types.Database{},
-		tokens:     map[string]Token{},
+		tokens:     map[string]types.Token{},
 		idem:       map[string]int64{},
 	}
 	return f, nil
@@ -210,7 +202,7 @@ func (f *FSM) Apply(log *raft.Log) any {
 		delete(f.databases, p.ID)
 		f.publish(string(cmd.Type), p)
 	case CmdTokenUpsert:
-		var t Token
+		var t types.Token
 		if err := json.Unmarshal(cmd.Payload, &t); err != nil {
 			return err
 		}
@@ -346,11 +338,21 @@ func (f *FSM) Databases() []types.Database {
 	return out
 }
 
-func (f *FSM) Token(id string) (Token, bool) {
+func (f *FSM) Token(id string) (types.Token, bool) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	t, ok := f.tokens[id]
 	return t, ok
+}
+
+func (f *FSM) Tokens() []types.Token {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]types.Token, 0, len(f.tokens))
+	for _, t := range f.tokens {
+		out = append(out, t)
+	}
+	return out
 }
 
 // Persist a side-cache of the current snapshot for fast cold-starts.
@@ -392,7 +394,7 @@ type snapshot struct {
 	Groups    map[string]*types.Group    `json:"groups"`
 	Templates map[string]*types.Template `json:"templates"`
 	Databases map[string]*types.Database `json:"databases"`
-	Tokens    map[string]Token           `json:"tokens"`
+	Tokens    map[string]types.Token     `json:"tokens"`
 	Idem      map[string]int64           `json:"idem"`
 	Taken     int64                      `json:"taken"`
 }

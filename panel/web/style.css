@@ -1,56 +1,127 @@
-/* AetherNet — custom CSS (Tailwind handles utilities; this covers what it can't) */
+/* AetherNet Panel — Global Styles */
 
-/* Background grid */
+/* Grid background pattern */
 .bg-grid-pattern {
   background-image:
     linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
-  background-size: 32px 32px;
+  background-size: 40px 40px;
 }
 
-/* Sidebar active nav item */
+/* Active navigation item */
 .nav-active {
-  background: rgba(160, 120, 255, 0.14) !important;
   color: #d0bcff !important;
+  background: rgba(208, 188, 255, 0.08) !important;
 }
 .nav-active .nav-icon {
   color: #d0bcff;
 }
 
-/* Material Symbols baseline alignment */
-.material-symbols-outlined {
-  font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' -25, 'opsz' 24;
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
-  line-height: 1;
-}
-
-/* Monaco editor: blend into glass card */
-.monaco-editor,
-.monaco-editor-background,
-.monaco-editor .margin {
-  background-color: transparent !important;
-}
-.monaco-editor .overflow-guard {
-  border-radius: 0;
-}
-
-/* Thin custom scrollbars */
-::-webkit-scrollbar       { width: 4px; height: 4px; }
+/* Animated scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(208, 188, 255, 0.12); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(208, 188, 255, 0.25); }
+::-webkit-scrollbar-thumb {
+  background: rgba(208, 188, 255, 0.2);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(208, 188, 255, 0.35);
+}
 
-/* Utility */
+/* Hidden class */
 .hidden { display: none !important; }
 
-/* Progress bar fill animation (used in server cards if added) */
-@keyframes progressFill {
-  from { width: 0; }
+/* View fade-in */
+.view { animation: fadeUp 0.35s ease both; }
+.view.hidden { animation: none; }
+
+/* Status pulse */
+@keyframes statusPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.status-pulse { animation: statusPulse 2s ease-in-out infinite; }
+
+/* Table row hover */
+tr:hover td { background: rgba(255,255,255,0.015); }
+
+/* Input focus glow */
+input:focus, select:focus, textarea:focus {
+  box-shadow: 0 0 0 3px rgba(208, 188, 255, 0.08);
 }
 
-/* Table row hover (Tailwind can't do hover:bg with opacity easily on tr) */
-tbody tr:hover {
-  background: rgba(255, 255, 255, 0.02);
+/* Button transitions */
+button { transition: all 0.15s ease; }
+button:active { transform: scale(0.97); }
+
+/* Monaco editor container */
+#wb-editor {
+  border-radius: 0;
+  overflow: hidden;
+}
+
+/* Responsive breakpoints for stat cards */
+@media (max-width: 1200px) {
+  #view-overview > div:nth-child(2) {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+@media (max-width: 800px) {
+  #sidebar {
+    width: 52px !important;
+    padding: 12px 8px !important;
+  }
+  #sidebar span:not(.nav-icon) { display: none; }
+  #content { margin-left: 68px !important; }
+}
+
+/* Glassmorphism card hover */
+.glass-hover {
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.glass-hover:hover {
+  border-color: rgba(208, 188, 255, 0.15) !important;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.3) !important;
+}
+
+/* Mod search input */
+#mod-search-input:focus {
+  border-color: rgba(76, 215, 246, 0.4) !important;
+  background: rgba(255,255,255,0.06) !important;
+}
+
+/* Workbench result table sticky header */
+#wb-results th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  backdrop-filter: blur(12px);
+}
+
+/* Tooltip base */
+[data-tooltip] {
+  position: relative;
+  cursor: default;
+}
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(18,20,30,0.95);
+  color: #e1e1ef;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.08);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 100;
+}
+[data-tooltip]:hover::after {
+  opacity: 1;
 }

@@ -4,16 +4,12 @@ plugins {
 }
 
 dependencies {
-    implementation(project(":common"))
     compileOnly("com.velocitypowered:velocity-api:3.3.0-SNAPSHOT")
+    implementation(project(":common"))
     kapt("com.velocitypowered:velocity-api:3.3.0-SNAPSHOT")
 }
 
-tasks {
-    shadowJar {
-        archiveClassifier.set("")
-        relocate("redis.clients.jedis", "net.aethernet.shaded.jedis")
-    }
+tasks.shadowJar {
+    archiveClassifier.set("")
+    mergeServiceFiles()
 }
-
-kotlin { jvmToolchain(21) }

@@ -1,0 +1,47 @@
+syntax = "proto3";
+package aethernet.cluster.v1;
+option go_package = "github.com/aethernet/aethernet/daemon/internal/proto/clusterv1";
+
+// NodeInfo represents cluster node metadata
+message NodeInfo {
+  string node_id = 1;
+  string address = 2;
+  uint64 memory_total_mb = 3;
+  uint64 memory_used_mb = 4;
+  float cpu_load = 5;
+  int64 last_heartbeat_unix = 6;
+  uint32 node_state = 7; // 0=unknown,1=up,2=suspect,3=down,4=draining
+}
+
+// JoinRequest is sent by a new node to bootstrap itself into the cluster
+message JoinRequest {
+  string node_id = 1;
+  string raft_addr = 2;
+  string join_token = 3;
+}
+
+message JoinResponse {
+  bool accepted = 1;
+  string leader_id = 2;
+  string leader_addr = 3;
+  string error = 4;
+}
+
+// ForwardRequest forwards a mutation from a non-leader to the leader
+message ForwardRequest {
+  string method = 1; // HTTP method: POST, PUT, DELETE, PATCH
+  string path = 2;
+  bytes body = 3;
+  map<string,string> headers = 4;
+}
+
+message ForwardResponse {
+  uint32 status_code = 1;
+  bytes body = 2;
+  map<string,string> headers = 3;
+}
+
+service ClusterService {
+  rpc Join(JoinRequest) returns (JoinResponse);
+  rpc ForwardMutation(ForwardRequest) returns (ForwardResponse);
+}

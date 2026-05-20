@@ -16,7 +16,9 @@ import (
 	"time"
 
 	"github.com/aethernet/aethernet/daemon/internal/cluster"
+	"github.com/aethernet/aethernet/daemon/internal/database"
 	"github.com/aethernet/aethernet/daemon/internal/docker"
+	"github.com/aethernet/aethernet/daemon/internal/firewall"
 	"github.com/aethernet/aethernet/daemon/internal/raftfsm"
 	"github.com/aethernet/aethernet/daemon/internal/scheduler"
 	"google.golang.org/grpc"
@@ -29,6 +31,8 @@ type Options struct {
 	FSM        *raftfsm.FSM
 	Scheduler  *scheduler.Scheduler
 	Docker     *docker.Controller
+	Firewall   *firewall.Manager
+	Workbench  *database.Workbench
 	Logger     *slog.Logger
 }
 
@@ -132,7 +136,7 @@ func withAuth(next http.Handler, o Options) http.Handler {
 			httpError(w, http.StatusUnauthorized, "invalid token")
 			return
 		}
-		if tok.ExpiresAt != 0 && tok.ExpiresAt < time.Now().Unix() {
+		if !tok.ExpiresAt.IsZero() && time.Now().After(tok.ExpiresAt) {
 			httpError(w, http.StatusUnauthorized, "token expired")
 			return
 		}

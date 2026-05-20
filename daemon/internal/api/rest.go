@@ -96,6 +96,13 @@ func registerHTTPRoutes(mux *http.ServeMux, o Options) {
 	mux.HandleFunc("/api/v1/groups", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]any{"groups": o.FSM.Groups()})
 	})
+
+	registerFirewallRoutes(mux, o)
+	registerModRoutes(mux, o)
+	registerRBACRoutes(mux, o)
+	if o.Workbench != nil {
+		registerWorkbenchRoutes(mux, o.Workbench, o)
+	}
 }
 
 func splitServerPath(p string) (id, action string) {
@@ -301,4 +308,13 @@ func (s *sseWriter) Write(b []byte) (int, error) {
 		s.flusher.Flush()
 	}
 	return n, err
+}
+
+// decodeJSON decodes the JSON body of r into v. It enforces a 4 MiB size limit
+// to prevent accidental or malicious oversized payloads.
+func decodeJSON(r *http.Request, v any) error {
+	r.Body = http.MaxBytesReader(nil, r.Body, 4<<20)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	return dec.Decode(v)
 }

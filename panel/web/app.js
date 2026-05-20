@@ -497,3 +497,164 @@ function escapeHtml(s) {
 refresh();
 setInterval(refresh, 2000);
 navigate("overview");
+
+// ─── FIREWALL VIEW ───────────────────────────────────────────────────────────
+
+function renderFirewall() {
+  let rules = [];
+  api("/api/v1/firewall/ports").then(r => {
+    rules = r.rules || [];
+    renderFirewallWith(rules);
+  }).catch(() => renderFirewallWith([]));
+}
+
+function renderFirewallWith(rules) {
+  const rows = rules.map(r => `<tr>
+    ${tdMuted(escapeHtml(r.server_id))}
+    ${tdText(String(r.host_port), true)}
+    ${tdMuted(r.protocol || 'tcp')}
+    ${tdCell(r.open ? badge('open', 'ready') : badge('closed', 'stopped'))}
+    ${tdText(escapeHtml(r.description || '—'))}
+    ${tdCell(`<div style="display:flex;gap:6px">
+      ${r.open
+        ? btnAction('Close', 'block', `closePort('${r.server_id}',${r.host_port})`, 'danger')
+        : btnAction('Open',  'check', `openPort('${r.server_id}',${r.host_port})`)}
+    </div>`)}
+  </tr>`).join('');
+
+  $('#view-firewall').innerHTML = `
+    ${viewHeader('Firewall', 'Port rules and IP access control')}
+    ${glassTable(['Server ID', 'Port', 'Protocol', 'Status', 'Description', 'Actions'], rows)}
+  `;
+}
+
+window.openPort  = (serverID, port) => api('/api/v1/firewall/ports/' + serverID + '/open',  { method: 'POST', body: JSON.stringify({ port }) }).then(renderFirewall);
+window.closePort = (serverID, port) => api('/api/v1/firewall/ports/' + serverID + '/close', { method: 'POST', body: JSON.stringify({ port }) }).then(renderFirewall);
+
+// ─── MODS VIEW ───────────────────────────────────────────────────────────────
+
+let modsSearchTimeout = null;
+
+function renderMods() {
+  $('#view-mods').innerHTML = `
+    ${viewHeader('Mods & Plugins', 'Search and install mods from Modrinth and CurseForge')}
+    <div class="animate-fade-up" style="background:rgba(29,31,41,0.4);backdrop-filter:blur(32px);border:1px solid rgba(255,255,255,0.05);border-radius:1rem;padding:20px;margin-bottom:20px">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <input id="mod-search-input" type="text" placeholder="Search mods, plugins, modpacks…"
+          style="flex:1;min-width:200px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:10px 16px;font-size:14px;color:#e1e1ef;font-family:'Sora',sans-serif;outline:none"
+          oninput="debouncedModSearch()" />
+        <select id="mod-source" style="background:rgba(29,31,41,0.8);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:10px 14px;font-size:13px;color:#e1e1ef;cursor:pointer">
+          <option value="modrinth">Modrinth</option>
+          <option value="curseforge">CurseForge</option>
+        </select>
+        <select id="mod-loader" style="background:rgba(29,31,41,0.8);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:10px 14px;font-size:13px;color:#e1e1ef;cursor:pointer">
+          <option value="">All loaders</option>
+          <option value="paper">Paper</option>
+          <option value="velocity">Velocity</option>
+          <option value="fabric">Fabric</option>
+          <option value="forge">Forge</option>
+          <option value="neoforge">NeoForge</option>
+        </select>
+      </div>
+    </div>
+    <div id="mod-results">
+      <div style="text-align:center;padding:64px 32px">
+        <span class="material-symbols-outlined" style="font-size:40px;color:rgba(203,195,215,0.2);display:block;margin-bottom:12px">extension</span>
+        <p style="color:rgba(203,195,215,0.4);font-size:14px;margin:0">Search to discover mods and plugins.</p>
+      </div>
+    </div>
+  `;
+}
+
+window.debouncedModSearch = () => {
+  clearTimeout(modsSearchTimeout);
+  modsSearchTimeout = setTimeout(doModSearch, 450);
+};
+
+async function doModSearch() {
+  const q = $('#mod-search-input').value.trim();
+  if (!q) return;
+  const source = $('#mod-source').value;
+  const loader = $('#mod-loader').value;
+  const res = $('#mod-results');
+  if (!res) return;
+  res.innerHTML = `<div style="text-align:center;padding:32px"><span style="color:#4cd7f6;font-family:monospace;font-size:12px">searching…</span></div>`;
+  try {
+    const data = await api(`/api/v1/mods/search?q=${encodeURIComponent(q)}&source=${source}&loader=${loader}`);
+    const results = data.results || [];
+    if (results.length === 0) {
+      res.innerHTML = `<div style="text-align:center;padding:32px;color:rgba(203,195,215,0.3);font-size:13px">No results found.</div>`;
+      return;
+    }
+    res.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">${results.slice(0,24).map(renderModCard).join('')}</div>`;
+  } catch(e) {
+    res.innerHTML = `<div style="color:#f87171;font-size:13px;padding:16px">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderModCard(mod) {
+  const downloads = mod.downloads ? formatNum(mod.downloads) : '';
+  return `<div class="animate-fade-up" style="background:rgba(29,31,41,0.4);backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:16px;transition:border-color 0.2s" onmouseover="this.style.borderColor='rgba(208,188,255,0.2)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.06)'">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+      <span style="font-size:14px;font-weight:600;color:#e1e1ef">${escapeHtml(mod.title || mod.name || mod.slug || mod.project_id)}</span>
+      ${downloads ? `<span style="font-size:11px;color:rgba(203,195,215,0.4);font-family:monospace">${downloads} ↓</span>` : ''}
+    </div>
+    <p style="font-size:12px;color:rgba(203,195,215,0.6);margin:0 0 12px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${escapeHtml(mod.description || '')}</p>
+    <button onclick="installMod('${escapeHtml(String(mod.project_id || mod.id || ''))}')" style="width:100%;padding:7px;border-radius:9px;font-size:12px;font-weight:600;color:#d0bcff;background:rgba(208,188,255,0.09);border:1px solid rgba(208,188,255,0.18);cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(208,188,255,0.18)'" onmouseout="this.style.background='rgba(208,188,255,0.09)'">
+      Install
+    </button>
+  </div>`;
+}
+
+window.installMod = (projectId) => {
+  api('/api/v1/mods/install', { method: 'POST', body: JSON.stringify({ project_id: projectId }) })
+    .then(r => { alert('Queued: ' + (r.message || 'Installation queued.')); })
+    .catch(e => alert('Error: ' + e.message));
+};
+
+function formatNum(n) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+  return String(n);
+}
+
+// ─── BACKUPS VIEW ─────────────────────────────────────────────────────────────
+
+function renderBackups() {
+  $('#view-backups').innerHTML = `
+    ${viewHeader('Backups', 'Zero-downtime server snapshots', btnPrimary('Run Backup', 'backup', 'triggerBackup()'))}
+    <div id="backup-list">
+      <div class="animate-fade-up" style="background:rgba(29,31,41,0.4);backdrop-filter:blur(32px);border:1px solid rgba(255,255,255,0.05);border-radius:1rem;padding:64px 32px;text-align:center">
+        <span class="material-symbols-outlined" style="font-size:40px;color:rgba(203,195,215,0.2);display:block;margin-bottom:12px">backup</span>
+        <p style="color:rgba(203,195,215,0.4);font-size:14px;margin:0 0 8px">No backups yet. Backups are streaming tar.gz archives uploaded to S3/MinIO.</p>
+        <p style="color:rgba(203,195,215,0.25);font-size:12px;font-family:monospace;margin:0">Use the Run Backup button or configure auto-scheduling in daemon.yaml.</p>
+      </div>
+    </div>
+  `;
+}
+
+window.triggerBackup = () => {
+  const serverID = prompt('Enter server ID to backup:');
+  if (!serverID) return;
+  api('/api/v1/servers/' + serverID + '/backup', { method: 'POST' })
+    .then(() => alert('Backup queued for ' + serverID))
+    .catch(e => alert('Error: ' + e.message));
+};
+
+// ─── Hook new views into render/navigate ─────────────────────────────────────
+
+// Extend the navigate function to handle new routes
+const _origNavigate = navigate;
+window.navigate = function(route) {
+  _origNavigate(route);
+  switch(route) {
+    case 'firewall': renderFirewall(); break;
+    case 'mods':    renderMods();    break;
+    case 'backups': renderBackups(); break;
+  }
+};
+
+// Re-register sidebar click handlers for new nav items
+$$('#sidebar a').forEach((a) => {
+  a.addEventListener('click', () => window.navigate(a.dataset.route));
+});

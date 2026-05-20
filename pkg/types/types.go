@@ -136,3 +136,13 @@ type Database struct {
 	CreatedAt time.Time `json:"created_at"`
 	SizeBytes uint64    `json:"size_bytes"`
 }
+
+type Token struct {
+	ID          string    `json:"id"`
+	Hash        string    `json:"hash"` // sha256 full hex
+	Description string    `json:"description"`
+	Scopes      []string  `json:"scopes"`
+	CreatedAt   time.Time `json:"created_at"`
+	ExpiresAt   time.Time `json:"expires_at,omitempty"`
+	LastUsedAt  time.Time `json:"last_used_at,omitempty"`
+}

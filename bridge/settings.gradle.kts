@@ -1,3 +1,2 @@
 rootProject.name = "aethernet-bridge"
-
-include("velocity", "paper", "common")
+include(":common", ":velocity", ":paper")

@@ -1,144 +1,125 @@
-// Package database provisions tenant MySQL/MariaDB databases against the
-// Galera cluster. The Galera cluster itself is brought up by the installer
-// (Module 9); this package only adds, drops and queries.
-//
-// All connections go through the local Galera node; Galera handles the
-// multi-master replication transparently.
+// Package database — provisioner.go
+// Dynamic database and user provisioner for MariaDB Galera.
 package database
 
 import (
 	"context"
 	"crypto/rand"
 	"database/sql"
-	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
-	"regexp"
-	"strings"
-	"time"
 
-	"github.com/aethernet/aethernet/pkg/types"
 	_ "github.com/go-sql-driver/mysql"
 )
 
+// Provisioner creates and drops isolated MariaDB databases and users.
 type Provisioner struct {
-	db   *sql.DB
-	log  *slog.Logger
-	host string
-	port uint32
+	db *sql.DB
 }
 
-type Config struct {
-	DSN  string // admin DSN with create/grant rights
-	Host string // user-facing host (e.g. cluster VIP)
-	Port uint32
-	Log  *slog.Logger
-}
-
-func New(cfg Config) (*Provisioner, error) {
-	if cfg.DSN == "" {
-		return nil, errors.New("empty DSN")
-	}
-	db, err := sql.Open("mysql", cfg.DSN)
+// NewProvisioner connects as the admin user and returns a Provisioner.
+func NewProvisioner(dsn string) (*Provisioner, error) {
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("provisioner: open: %w", err)
 	}
-	db.SetMaxOpenConns(8)
-	db.SetMaxIdleConns(2)
-	db.SetConnMaxIdleTime(5 * time.Minute)
+	db.SetMaxOpenConns(4)
+	db.SetMaxIdleConns(1)
 	if err := db.Ping(); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("ping galera: %w", err)
+		return nil, fmt.Errorf("provisioner: ping: %w", err)
 	}
-	if cfg.Log == nil {
-		cfg.Log = slog.Default()
-	}
-	return &Provisioner{db: db, log: cfg.Log, host: cfg.Host, port: cfg.Port}, nil
+	return &Provisioner{db: db}, nil
 }
 
-func (p *Provisioner) Close() error { return p.db.Close() }
+// ProvisionResult contains the newly created database credentials.
+type ProvisionResult struct {
+	DatabaseName string
+	Username     string
+	Password     string
+}
 
-var ident = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]{0,31}$`)
-
-// Create provisions a new database + user and returns the generated password.
-// The password is shown to the user once and is never persisted in plaintext.
-func (p *Provisioner) Create(ctx context.Context, name string) (types.Database, string, error) {
-	if !ident.MatchString(name) {
-		return types.Database{}, "", fmt.Errorf("invalid database name %q (must match ^[a-zA-Z][a-zA-Z0-9_]{0,31}$)", name)
+// Create provisions a new isolated MariaDB database and a dedicated user
+// with full privileges scoped strictly to that database.
+func (p *Provisioner) Create(ctx context.Context, dbName, username string) (*ProvisionResult, error) {
+	if !isValidIdent(dbName) || !isValidIdent(username) {
+		return nil, errors.New("provisioner: invalid database or username (alphanum + underscore only, max 64 chars)")
 	}
-	user := name + "_u"
-	pwd, err := randomPassword(24)
+	password, err := generatePassword(24)
 	if err != nil {
-		return types.Database{}, "", err
+		return nil, fmt.Errorf("provisioner: generate password: %w", err)
 	}
 
-	// Galera is a single logical write target; we use a single transaction-like
-	// sequence of DDL statements. DDL is auto-committed, so we wrap in a
-	// best-effort cleanup on partial failure.
-	stmts := []string{
-		"CREATE DATABASE IF NOT EXISTS `" + name + "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci",
-		"CREATE USER IF NOT EXISTS '" + user + "'@'%' IDENTIFIED BY '" + escape(pwd) + "'",
-		"GRANT ALL PRIVILEGES ON `" + name + "`.* TO '" + user + "'@'%'",
+	queries := []string{
+		// Backtick-quote the identifier to prevent injection even though we validated
+		fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci", dbName),
+		fmt.Sprintf("CREATE USER IF NOT EXISTS '%s'@'%%' IDENTIFIED BY '%s'", username, password),
+		fmt.Sprintf("GRANT ALL PRIVILEGES ON `%s`.* TO '%s'@'%%'", dbName, username),
 		"FLUSH PRIVILEGES",
 	}
-	for _, stmt := range stmts {
-		if _, err := p.db.ExecContext(ctx, stmt); err != nil {
-			p.log.Warn("ddl failed, attempting cleanup", "stmt", stmt, "err", err)
-			_, _ = p.db.ExecContext(ctx, "DROP DATABASE IF EXISTS `"+name+"`")
-			_, _ = p.db.ExecContext(ctx, "DROP USER IF EXISTS '"+user+"'@'%'")
-			return types.Database{}, "", err
+
+	for _, q := range queries {
+		if _, err := p.db.ExecContext(ctx, q); err != nil {
+			return nil, fmt.Errorf("provisioner: %q: %w", q, err)
 		}
 	}
-
-	return types.Database{
-		ID:        "db_" + name,
-		Name:      name,
-		Engine:    "mariadb",
-		Username:  user,
-		Host:      p.host,
-		Port:      p.port,
-		CreatedAt: time.Now(),
-	}, pwd, nil
+	return &ProvisionResult{
+		DatabaseName: dbName,
+		Username:     username,
+		Password:     password,
+	}, nil
 }
 
-func (p *Provisioner) Drop(ctx context.Context, name string) error {
-	if !ident.MatchString(name) {
-		return fmt.Errorf("invalid name")
+// Drop removes the database and its dedicated user.
+func (p *Provisioner) Drop(ctx context.Context, dbName, username string) error {
+	if !isValidIdent(dbName) || !isValidIdent(username) {
+		return errors.New("provisioner: invalid identifier")
 	}
-	user := name + "_u"
-	_, err := p.db.ExecContext(ctx, "DROP DATABASE IF EXISTS `"+name+"`")
-	if err != nil {
-		return err
+	queries := []string{
+		fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", dbName),
+		fmt.Sprintf("DROP USER IF EXISTS '%s'@'%%'", username),
+		"FLUSH PRIVILEGES",
 	}
-	_, _ = p.db.ExecContext(ctx, "DROP USER IF EXISTS '"+user+"'@'%'")
+	for _, q := range queries {
+		if _, err := p.db.ExecContext(ctx, q); err != nil {
+			return fmt.Errorf("provisioner drop %q: %w", q, err)
+		}
+	}
 	return nil
 }
 
-// SizeBytes reports the on-disk size of a single database.
-func (p *Provisioner) SizeBytes(ctx context.Context, name string) (uint64, error) {
-	if !ident.MatchString(name) {
-		return 0, fmt.Errorf("invalid name")
-	}
-	row := p.db.QueryRowContext(ctx,
-		"SELECT IFNULL(SUM(data_length + index_length), 0) FROM information_schema.tables WHERE table_schema = ?",
-		name,
-	)
-	var n uint64
-	if err := row.Scan(&n); err != nil {
+// SizeBytes returns the approximate on-disk size of a database in bytes.
+func (p *Provisioner) SizeBytes(ctx context.Context, dbName string) (uint64, error) {
+	var size sql.NullInt64
+	err := p.db.QueryRowContext(ctx,
+		`SELECT SUM(data_length + index_length)
+		 FROM information_schema.TABLES
+		 WHERE table_schema = ?`, dbName).Scan(&size)
+	if err != nil {
 		return 0, err
 	}
-	return n, nil
+	if size.Valid {
+		return uint64(size.Int64), nil
+	}
+	return 0, nil
 }
 
-func escape(s string) string {
-	return strings.NewReplacer(`\`, `\\`, `'`, `\'`).Replace(s)
-}
-
-func randomPassword(n int) (string, error) {
+func generatePassword(n int) (string, error) {
 	b := make([]byte, n)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
-	return base64.RawURLEncoding.EncodeToString(b)[:n], nil
+	return hex.EncodeToString(b)[:n], nil
+}
+
+func isValidIdent(s string) bool {
+	if len(s) == 0 || len(s) > 64 {
+		return false
+	}
+	for _, r := range s {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
+			return false
+		}
+	}
+	return true
 }

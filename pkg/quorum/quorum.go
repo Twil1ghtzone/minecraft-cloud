@@ -1,29 +1,19 @@
-// Package quorum implements the canonical Raft quorum calculation used
-// throughout AetherNet:
-//
-//	Q = floor(N/2) + 1
-//
-// The single source of truth lives here so that the panel UI, the
-// installer, and the daemon all agree on whether a given membership
-// constitutes a viable cluster.
+// Package quorum provides the quorum size calculation per the Raft spec.
+// Q = floor(N/2) + 1
 package quorum
 
-// Size returns Q for a cluster of N nodes.
+// Size returns the minimum number of voters required for a quorum in a
+// cluster of n voters. If n == 0, returns 1 to avoid divide-by-zero
+// callers issuing vacuous decisions.
 func Size(n int) int {
 	if n <= 0 {
-		return 0
+		return 1
 	}
-	return n/2 + 1
+	return (n / 2) + 1
 }
 
-// Tolerates returns the number of node failures a cluster of size n can
-// survive while still committing writes.
-func Tolerates(n int) int {
-	return n - Size(n)
-}
-
-// Satisfied reports whether `alive` out of `total` nodes is enough to
-// commit a write.
-func Satisfied(alive, total int) bool {
-	return alive >= Size(total)
+// HasQuorum reports whether the number of reachable voters satisfies quorum
+// for a cluster of total voters.
+func HasQuorum(total, reachable int) bool {
+	return reachable >= Size(total)
 }

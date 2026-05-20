@@ -1,0 +1,34 @@
+syntax = "proto3";
+package aethernet.daemon.v1;
+option go_package = "github.com/aethernet/aethernet/daemon/internal/proto/daemonv1";
+
+// RCONCommandRequest sends a command to a running Minecraft server's RCON interface
+message RCONCommandRequest {
+  string server_id = 1;
+  string command = 2;
+  uint32 timeout_ms = 3;
+}
+
+message RCONCommandResponse {
+  string output = 1;
+  bool success = 2;
+  string error = 3;
+}
+
+// LogStreamRequest streams logs from a container
+message LogStreamRequest {
+  string server_id = 1;
+  bool follow = 2;
+  uint32 tail_lines = 3;
+}
+
+message LogChunk {
+  bytes data = 1;
+  int64 timestamp = 2;
+  bool stderr = 3;
+}
+
+service DaemonService {
+  rpc SendRCON(RCONCommandRequest) returns (RCONCommandResponse);
+  rpc StreamLogs(LogStreamRequest) returns (stream LogChunk);
+}

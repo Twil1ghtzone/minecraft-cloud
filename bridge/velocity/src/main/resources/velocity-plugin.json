@@ -1,0 +1,8 @@
+{
+  "id": "aethernet-bridge",
+  "name": "AetherNet Bridge",
+  "version": "0.1.0",
+  "description": "AetherNet Velocity proxy bridge — hot server routing via gRPC",
+  "authors": ["AetherNet"],
+  "dependencies": []
+}
