@@ -1,66 +1,56 @@
-:root {
-  --bg: #0d1117;
-  --bg-2: #161b22;
-  --bg-3: #21262d;
-  --fg: #e6edf3;
-  --fg-2: #9aa6b2;
-  --accent: #58a6ff;
-  --accent-2: #1f6feb;
-  --green: #3fb950;
-  --red: #f85149;
-  --amber: #d29922;
-  --border: #30363d;
+/* AetherNet — custom CSS (Tailwind handles utilities; this covers what it can't) */
+
+/* Background grid */
+.bg-grid-pattern {
+  background-image:
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 
-* { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-a { color: var(--accent); cursor: pointer; }
-button { background: var(--accent-2); color: white; border: 0; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
-button:hover { background: var(--accent); }
-input, select { background: var(--bg-3); color: var(--fg); border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; }
+/* Sidebar active nav item */
+.nav-active {
+  background: rgba(160, 120, 255, 0.14) !important;
+  color: #d0bcff !important;
+}
+.nav-active .nav-icon {
+  color: #d0bcff;
+}
+
+/* Material Symbols baseline alignment */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' -25, 'opsz' 24;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+/* Monaco editor: blend into glass card */
+.monaco-editor,
+.monaco-editor-background,
+.monaco-editor .margin {
+  background-color: transparent !important;
+}
+.monaco-editor .overflow-guard {
+  border-radius: 0;
+}
+
+/* Thin custom scrollbars */
+::-webkit-scrollbar       { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(208, 188, 255, 0.12); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(208, 188, 255, 0.25); }
+
+/* Utility */
 .hidden { display: none !important; }
 
-#app { display: grid; grid-template-columns: 220px 1fr; min-height: 100%; }
-
-#sidebar {
-  background: var(--bg-2);
-  border-right: 1px solid var(--border);
-  padding: 16px;
-  display: flex; flex-direction: column;
+/* Progress bar fill animation (used in server cards if added) */
+@keyframes progressFill {
+  from { width: 0; }
 }
-#sidebar h1 { margin: 0 0 16px; font-size: 18px; }
-#sidebar ul { list-style: none; padding: 0; margin: 0; flex: 1; }
-#sidebar a { display: block; padding: 6px 10px; border-radius: 6px; color: var(--fg-2); text-decoration: none; }
-#sidebar a:hover, #sidebar a.active { background: var(--bg-3); color: var(--fg); }
-#sidebar footer { font-size: 12px; color: var(--fg-2); display: grid; gap: 4px; }
 
-#content { padding: 24px; overflow-y: auto; }
-
-.view h2 { margin-top: 0; }
-
-table { width: 100%; border-collapse: collapse; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
-th { background: var(--bg-3); font-weight: 600; }
-tr:last-child td { border-bottom: 0; }
-
-.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
-.badge.ready, .badge.up { background: rgba(63,185,80,0.15); color: var(--green); }
-.badge.stopped, .badge.down { background: rgba(248,81,73,0.15); color: var(--red); }
-.badge.starting, .badge.suspect { background: rgba(210,153,34,0.15); color: var(--amber); }
-.badge.leader { background: rgba(88,166,255,0.15); color: var(--accent); }
-
-.workbench-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
-#wb-editor { border: 1px solid var(--border); border-radius: 6px; }
-#wb-results { margin-top: 12px; max-height: 50vh; overflow: auto; }
-
-#login-modal {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
-  display: grid; place-items: center; z-index: 999;
+/* Table row hover (Tailwind can't do hover:bg with opacity easily on tr) */
+tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
 }
-#login-form {
-  background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px;
-  padding: 24px; min-width: 360px; display: grid; gap: 12px;
-}
-#login-form h2 { margin: 0; }
-#login-form input { width: 100%; }
