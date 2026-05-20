@@ -1,0 +1,12 @@
+name: AetherNetBridge
+version: '${version}'
+main: net.aethernet.bridge.paper.AetherPaperPlugin
+api-version: '1.21'
+load: STARTUP
+authors: [AetherNet]
+description: Atomic player-state synchronisation across the cluster.
+
+permissions:
+  aethernet.admin:
+    description: Manage AetherNet bridge from in-game.
+    default: op

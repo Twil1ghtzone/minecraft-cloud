@@ -1,0 +1,45 @@
+## Go
+/bin/
+/dist/
+*.test
+*.out
+*.exe
+*.dll
+/daemon/aether-daemon
+/panel/aether-panel
+vendor/
+
+## Kotlin / Gradle
+.gradle/
+build/
+*.jar
+!bridge/**/libs/*.jar
+
+## IDE
+.idea/
+.vscode/
+*.iml
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Local state
+/data/
+/var/
+/etc/aethernet/
+*.log
+*.pid
+*.sock
+
+## Secrets
+*.pem
+*.key
+!**/testdata/*.key
+.env
+.env.local
+
+## Generated protobuf
+**/*.pb.go
+**/*_grpc.pb.go
+bridge/**/generated/

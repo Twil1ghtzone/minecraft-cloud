@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package aethernet.common.v1;
+
+option go_package = "github.com/aethernet/aethernet/pkg/proto/common/v1;commonv1";
+
+// Resource quantities tracked on each node.
+message Resources {
+  uint64 memory_total_mb = 1;
+  uint64 memory_used_mb  = 2;
+  uint32 cpu_cores       = 3;
+  double cpu_load        = 4; // 1m load average
+  uint64 disk_total_mb   = 5;
+  uint64 disk_used_mb    = 6;
+}
+
+enum ServerState {
+  SERVER_STATE_UNSPECIFIED = 0;
+  SERVER_STATE_STOPPED     = 1;
+  SERVER_STATE_STARTING    = 2;
+  SERVER_STATE_READY       = 3;   // gRPC ready signal received from the container
+  SERVER_STATE_STOPPING    = 4;
+  SERVER_STATE_CRASHED     = 5;
+  SERVER_STATE_ORPHANED    = 6;   // host node went down
+}
+
+enum NodeState {
+  NODE_STATE_UNSPECIFIED = 0;
+  NODE_STATE_UP          = 1;
+  NODE_STATE_SUSPECT     = 2;   // missed >1 heartbeat
+  NODE_STATE_DOWN        = 3;   // missed >1000ms
+  NODE_STATE_DRAINING    = 4;   // graceful shutdown in progress
+}
+
+message NodeInfo {
+  string    id              = 1;
+  string    address         = 2; // host:gRPCport
+  NodeState state           = 3;
+  Resources resources       = 4;
+  int64     last_heartbeat  = 5; // unix nanos
+  bool      is_leader       = 6;
+  string    version         = 7;
+}
+
+message ServerSpec {
+  string id                = 1;
+  string name              = 2;
+  string template_id       = 3;
+  string group_id          = 4;
+  string image             = 5; // OCI image
+  uint64 memory_mb         = 6;
+  double cpu_quota         = 7;
+  map<string, string> env  = 8;
+  uint32 minecraft_port    = 9;
+  bool   ha_required       = 10;
+}
+
+message ServerStatus {
+  string      id           = 1;
+  string      node_id      = 2;
+  ServerState state        = 3;
+  uint32      player_count = 4;
+  uint32      max_players  = 5;
+  int64       uptime_sec   = 6;
+}

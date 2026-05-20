@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package aethernet.velocity.v1;
+
+import "common/v1/common.proto";
+
+option go_package = "github.com/aethernet/aethernet/pkg/proto/velocity/v1;velocityv1";
+option java_package = "net.aethernet.bridge.proto";
+option java_multiple_files = true;
+
+// VelocityService is consumed by the Kotlin bridge running inside Velocity.
+// It is a long-lived stream that emits backend lifecycle events live.
+service VelocityService {
+  rpc Subscribe(SubscribeRequest) returns (stream BackendEvent);
+  rpc Register (RegisterRequest)  returns (RegisterResponse); // velocity announces itself
+  rpc PublishSignState(stream SignStateUpdate) returns (SignStateAck);
+}
+
+message SubscribeRequest { string velocity_id = 1; }
+
+message BackendEvent {
+  oneof event {
+    BackendReady    ready    = 1;
+    BackendGone     gone     = 2;
+    BackendPlayers  players  = 3; // periodic player count update
+    GroupRefresh    group    = 4; // entire group hint refresh
+  }
+}
+
+message BackendReady {
+  string server_id    = 1;
+  string group_id     = 2;
+  string host         = 3;
+  uint32 port         = 4;
+  uint32 max_players  = 5;
+}
+
+message BackendGone {
+  string server_id = 1;
+  string reason    = 2;
+}
+
+message BackendPlayers {
+  string server_id    = 1;
+  uint32 player_count = 2;
+}
+
+message GroupRefresh {
+  string group_id  = 1;
+  repeated string server_ids = 2;
+}
+
+message RegisterRequest { string velocity_id = 1; string address = 2; }
+message RegisterResponse { bool accepted = 1; }
+
+message SignStateUpdate {
+  string server_id     = 1;
+  aethernet.common.v1.ServerState state = 2;
+  uint32 player_count  = 3;
+  uint32 max_players   = 4;
+  string motd          = 5;
+}
+
+message SignStateAck { uint64 received = 1; }

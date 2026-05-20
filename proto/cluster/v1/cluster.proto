@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package aethernet.cluster.v1;
+
+import "common/v1/common.proto";
+
+option go_package = "github.com/aethernet/aethernet/pkg/proto/cluster/v1;clusterv1";
+
+service ClusterService {
+  rpc Join     (JoinRequest)     returns (JoinResponse);
+  rpc Leave    (LeaveRequest)    returns (LeaveResponse);
+  rpc Members  (MembersRequest)  returns (MembersResponse);
+  rpc Leader   (LeaderRequest)   returns (LeaderResponse);
+  rpc Apply    (ApplyRequest)    returns (ApplyResponse); // forwarded write
+  rpc Heartbeat(stream Heartbeat) returns (stream HeartbeatAck);
+}
+
+message JoinRequest {
+  string node_id  = 1;
+  string address  = 2;
+  string join_token = 3;
+}
+
+message JoinResponse {
+  string cluster_id = 1;
+  bytes  ca_cert    = 2;
+  bytes  node_cert  = 3;
+  bytes  node_key   = 4;
+  repeated aethernet.common.v1.NodeInfo peers = 5;
+}
+
+message LeaveRequest  { string node_id = 1; }
+message LeaveResponse {}
+
+message MembersRequest  {}
+message MembersResponse {
+  repeated aethernet.common.v1.NodeInfo nodes = 1;
+}
+
+message LeaderRequest  {}
+message LeaderResponse {
+  string leader_id      = 1;
+  string leader_address = 2;
+}
+
+// Apply forwards an FSM mutation from any node to the leader.
+message ApplyRequest {
+  string command_type = 1; // e.g. "server.start", "db.create"
+  bytes  payload      = 2; // protobuf-serialized command
+  string idempotency_key = 3;
+}
+
+message ApplyResponse {
+  bool   committed = 1;
+  uint64 index     = 2;
+  bytes  result    = 3;
+  string error     = 4;
+}
+
+message Heartbeat {
+  string node_id   = 1;
+  aethernet.common.v1.Resources resources = 2;
+  int64  sent_at   = 3; // unix nanos
+}
+
+message HeartbeatAck {
+  int64  received_at = 1;
+  string leader_id   = 2;
+}

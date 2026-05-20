@@ -1,0 +1,9 @@
+# Normalize line endings in the repo to LF; Git will convert to CRLF on checkout on Windows.
+* text=auto eol=lf
+
+# Binary files — no conversion.
+*.jar    binary
+*.png    binary
+*.ico    binary
+*.so     binary
+*.dll    binary

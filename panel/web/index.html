@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AetherNet — Cluster Panel</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.46.0/min/vs/editor/editor.main.min.css" />
+</head>
+<body>
+  <div id="app">
+    <nav id="sidebar">
+      <h1>AetherNet</h1>
+      <ul>
+        <li><a data-route="overview" class="active">Overview</a></li>
+        <li><a data-route="nodes">Nodes</a></li>
+        <li><a data-route="servers">Servers</a></li>
+        <li><a data-route="groups">Groups</a></li>
+        <li><a data-route="templates">Templates</a></li>
+        <li><a data-route="databases">Databases</a></li>
+        <li><a data-route="workbench">SQL Workbench</a></li>
+        <li><a data-route="tokens">API Tokens</a></li>
+      </ul>
+      <footer>
+        <span id="leader-tag">leader: ?</span>
+        <span id="quorum-tag">quorum: ?/?</span>
+      </footer>
+    </nav>
+    <main id="content">
+      <section id="view-overview" class="view"></section>
+      <section id="view-nodes" class="view hidden"></section>
+      <section id="view-servers" class="view hidden"></section>
+      <section id="view-groups" class="view hidden"></section>
+      <section id="view-templates" class="view hidden"></section>
+      <section id="view-databases" class="view hidden"></section>
+      <section id="view-workbench" class="view hidden">
+        <div class="workbench-toolbar">
+          <select id="wb-db"></select>
+          <button id="wb-run">Run (Ctrl+Enter)</button>
+          <span id="wb-duration"></span>
+        </div>
+        <div id="wb-editor" style="height: 240px;"></div>
+        <div id="wb-results"></div>
+      </section>
+      <section id="view-tokens" class="view hidden"></section>
+    </main>
+  </div>
+  <div id="login-modal" class="hidden">
+    <form id="login-form">
+      <h2>AetherNet Login</h2>
+      <p>Paste your API bearer token to continue.</p>
+      <input type="password" id="login-token" placeholder="aether_..." autocomplete="off" />
+      <button type="submit">Unlock</button>
+    </form>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.46.0/min/vs/loader.min.js"></script>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

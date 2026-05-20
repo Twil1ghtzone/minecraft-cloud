@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package aethernet.daemon.v1;
+
+import "common/v1/common.proto";
+
+option go_package = "github.com/aethernet/aethernet/pkg/proto/daemon/v1;daemonv1";
+
+// DaemonService runs on every node. Lifecycle calls are dispatched by the
+// scheduler on the node currently hosting (or selected to host) the server.
+service DaemonService {
+  rpc StartServer  (StartRequest)        returns (StartResponse);
+  rpc StopServer   (StopRequest)         returns (StopResponse);
+  rpc RestartServer(RestartRequest)      returns (StopResponse);
+  rpc DeleteServer (DeleteRequest)       returns (DeleteResponse);
+  rpc StatusServer (StatusRequest)       returns (aethernet.common.v1.ServerStatus);
+  rpc StreamLogs   (LogsRequest)         returns (stream LogChunk);
+  rpc Exec         (ExecRequest)         returns (ExecResponse);
+  rpc Notify       (NotifyRequest)       returns (NotifyResponse); // container -> daemon (READY etc.)
+}
+
+message StartRequest {
+  aethernet.common.v1.ServerSpec spec = 1;
+}
+
+message StartResponse {
+  string container_id = 1;
+  uint32 host_port    = 2;
+}
+
+message StopRequest    { string server_id = 1; uint32 grace_seconds = 2; }
+message StopResponse   { bool stopped = 1; }
+message RestartRequest { string server_id = 1; }
+message DeleteRequest  { string server_id = 1; bool purge_volumes = 2; }
+message DeleteResponse { bool deleted = 1; }
+message StatusRequest  { string server_id = 1; }
+message LogsRequest    { string server_id = 1; bool follow = 2; uint32 tail_lines = 3; }
+message LogChunk       { bytes data = 1; int64 ts = 2; }
+
+message ExecRequest    { string server_id = 1; string command = 2; }
+message ExecResponse   { string output = 1; int32 exit_code = 2; }
+
+message NotifyRequest  {
+  string server_id = 1;
+  aethernet.common.v1.ServerState state = 2;
+  uint32 player_count = 3;
+  string detail = 4;
+}
+message NotifyResponse { bool ok = 1; }
