@@ -24,10 +24,10 @@ import (
 
 var (
 	configPath = flag.String("config", "/etc/aethernet/daemon.yaml", "path to daemon config")
-	bootstrap  = flag.Bool("bootstrap", false, "initialize a new single-node cluster")
-	joinAddr   = flag.String("join", "", "address of an existing cluster member to join")
-	joinToken  = flag.String("join-token", "", "one-time join token (required when --join is set)")
-	logLevel   = flag.String("log-level", "info", "debug|info|warn|error")
+	bootstrap  = flag.Bool("bootstrap", envBool("AETHERNET_BOOTSTRAP", false), "initialize a new single-node cluster")
+	joinAddr   = flag.String("join", os.Getenv("JOIN_ADDR"), "address of an existing cluster member to join")
+	joinToken  = flag.String("join-token", os.Getenv("JOIN_TOKEN"), "one-time join token (required when --join is set)")
+	logLevel   = flag.String("log-level", envStr("LOG_LEVEL", "info"), "debug|info|warn|error")
 )
 
 func main() {
@@ -150,6 +150,24 @@ func run(logger *slog.Logger) error {
 	defer scancel()
 	apiSrv.Shutdown(shutdownCtx)
 	return nil
+}
+
+func envBool(key string, def bool) bool {
+	v := os.Getenv(key)
+	if v == "true" || v == "1" || v == "yes" {
+		return true
+	}
+	if v == "false" || v == "0" || v == "no" {
+		return false
+	}
+	return def
+}
+
+func envStr(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
 }
 
 func newLogger(level string) *slog.Logger {
